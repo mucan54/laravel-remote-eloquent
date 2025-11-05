@@ -257,12 +257,13 @@ class PostList extends Component
 
 ### Batch Queries (Performance!)
 
-Execute multiple queries in a single HTTP request:
+Execute multiple queries in a single request. **Works in BOTH modes!**
 
 ```php
 use RemoteEloquent\Client\BatchQuery;
 
-// Execute multiple queries at once
+// Client mode: 1 HTTP request instead of 4!
+// Server mode: Executes locally, same code!
 $results = BatchQuery::run([
     'posts' => Post::where('status', 'published')->limit(10),
     'recentComments' => Comment::latest()->limit(5),
@@ -270,7 +271,7 @@ $results = BatchQuery::run([
     'userData' => User::with('profile')->find(auth()->id()),
 ]);
 
-// Access results
+// Access results (works everywhere!)
 $posts = $results['posts'];              // Collection
 $recentComments = $results['recentComments'];  // Collection
 $postCount = $results['postCount'];      // int
@@ -296,6 +297,7 @@ $results = BatchQuery::run([
 - ✅ Better mobile app performance
 - ✅ Lower latency
 - ✅ Automatic error handling per query
+- ✅ **Works in both modes - same code everywhere!**
 
 ### Remote Services (Server-Side Logic!)
 
@@ -407,6 +409,55 @@ $emailService->sendWelcomeEmail(auth()->id()); // Executes on server
 - ✅ Automatic serialization/deserialization
 - ✅ Type-safe method calls
 
+### Batch Services (Execute Multiple Service Methods!)
+
+Execute multiple service methods in a single request. **Works in BOTH modes!**
+
+```php
+use RemoteEloquent\Client\BatchService;
+
+// Works in both client and server modes!
+$paymentService = new PaymentService();
+$emailService = new EmailService();
+$smsService = new SmsService();
+
+$results = BatchService::run([
+    'charge' => [$paymentService, 'processPayment', [1000, $token]],
+    'email' => [$emailService, 'sendReceipt', [$userId, $orderId]],
+    'sms' => [$smsService, 'sendConfirmation', [$phone]],
+]);
+
+// Access results
+$chargeId = $results['charge'];  // "ch_1234567890"
+$emailSent = $results['email'];  // true
+$smsSent = $results['sms'];      // true
+```
+
+**Real-World Example:**
+```php
+// Complete checkout flow - 1 request instead of 3!
+$paymentService = new PaymentService();
+$emailService = new EmailService();
+$inventoryService = new InventoryService();
+
+$results = BatchService::run([
+    'payment' => [$paymentService, 'processPayment', [$amount, $token]],
+    'email' => [$emailService, 'sendInvoice', [$userId, $orderId]],
+    'inventory' => [$inventoryService, 'decrementStock', [$productId, $quantity]],
+]);
+
+if (!isset($results['payment']['error'])) {
+    // All succeeded!
+    $chargeId = $results['payment'];
+}
+```
+
+**Benefits:**
+- ✅ Multiple service calls = 1 HTTP request
+- ✅ Works in both client and server modes
+- ✅ Automatic error handling per service
+- ✅ Perfect for complex workflows (checkout, registration, etc.)
+
 ## Configuration Reference
 
 ```php
@@ -495,6 +546,7 @@ When in server mode, these endpoints are automatically registered:
 - `POST /api/remote-eloquent/execute` - Execute single query
 - `POST /api/remote-eloquent/batch` - Execute batch queries
 - `POST /api/remote-eloquent/service` - Execute remote service method
+- `POST /api/remote-eloquent/batch-service` - Execute batch service methods
 - `GET /api/remote-eloquent/health` - Health check
 
 ## Testing
@@ -534,6 +586,25 @@ Authorization: Bearer {token}
             "chain": [{"method": "where", "parameters": ["status", "published"]}],
             "method": "count",
             "parameters": []
+        }
+    }
+}
+
+// Test batch service methods
+POST https://api.yourapp.com/api/remote-eloquent/batch-service
+Authorization: Bearer {token}
+
+{
+    "services": {
+        "payment": {
+            "service": "App\\Services\\PaymentService",
+            "method": "processPayment",
+            "arguments": [1000, "tok_visa"]
+        },
+        "email": {
+            "service": "App\\Services\\EmailService",
+            "method": "sendReceipt",
+            "arguments": [123, 456]
         }
     }
 }

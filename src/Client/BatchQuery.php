@@ -7,11 +7,13 @@ use Illuminate\Support\Facades\Http;
 /**
  * Batch Query
  *
- * Execute multiple queries in a single HTTP request for better performance.
+ * Execute multiple queries in a single request (client mode) or locally (server mode).
+ * Works in BOTH modes - same code everywhere!
  *
  * Usage:
  * ```php
- * $results = BatchQuery::execute([
+ * // Works in both client and server modes!
+ * $results = BatchQuery::run([
  *     'posts' => Post::where('status', 'published')->limit(10),
  *     'comments' => Comment::latest()->limit(5),
  *     'stats' => Post::where('status', 'published')->count(),
@@ -68,6 +70,25 @@ class BatchQuery
             return [];
         }
 
+        // Check mode
+        $mode = config('remote-eloquent.mode', 'server');
+
+        if ($mode === 'client') {
+            return $this->executeRemote();
+        }
+
+        // Server mode: execute locally
+        return $this->executeLocal();
+    }
+
+    /**
+     * Execute queries remotely (client mode)
+     *
+     * @return array
+     * @throws \Exception
+     */
+    protected function executeRemote(): array
+    {
         // Build ASTs for all queries
         $batch = [];
         foreach ($this->queries as $key => $item) {
@@ -94,6 +115,33 @@ class BatchQuery
 
         // Transform results
         return $this->transformResults($results);
+    }
+
+    /**
+     * Execute queries locally (server mode)
+     *
+     * @return array
+     */
+    protected function executeLocal(): array
+    {
+        $results = [];
+
+        foreach ($this->queries as $key => $item) {
+            try {
+                $query = $item['query'];
+                $method = $item['method'];
+                $parameters = $item['parameters'];
+
+                // Execute query locally
+                $result = $query->$method(...$parameters);
+
+                $results[$key] = $result;
+            } catch (\Exception $e) {
+                $results[$key] = ['error' => $e->getMessage()];
+            }
+        }
+
+        return $results;
     }
 
     /**
