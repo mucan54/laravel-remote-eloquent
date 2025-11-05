@@ -458,6 +458,272 @@ if (!isset($results['payment']['error'])) {
 - ✅ Automatic error handling per service
 - ✅ Perfect for complex workflows (checkout, registration, etc.)
 
+### Conditional Batch Execution (Advanced Workflows!)
+
+Execute services with **dependency management** and **conditional logic**. Perfect for complex workflows where later steps depend on earlier results!
+
+**Works in BOTH modes** - Same code everywhere!
+
+#### Simple Example: Payment → Email → SMS
+
+```php
+use RemoteEloquent\Client\BatchService;
+
+$paymentService = new PaymentService();
+$emailService = new EmailService();
+$smsService = new SmsService();
+
+$results = BatchService::run([
+    // Step 1: Process payment first
+    'payment' => [$paymentService, 'charge', [1000, $token]],
+
+    // Step 2: Send email ONLY if payment succeeds
+    'email' => [
+        'service' => $emailService,
+        'method' => 'sendReceipt',
+        'args' => fn($results) => [$userId, $results['payment']['orderId']],
+        'depends_on' => ['payment'],
+        'on_failure' => 'skip', // skip email if payment fails
+    ],
+
+    // Step 3: Send SMS ONLY if payment succeeds
+    'sms' => [
+        'service' => $smsService,
+        'method' => 'sendConfirmation',
+        'args' => fn($results) => [$phone, $results['payment']['orderId']],
+        'depends_on' => ['payment'],
+        'on_failure' => 'skip',
+    ],
+]);
+
+// Check results
+if (isset($results['payment']['orderId'])) {
+    echo "Payment successful! Order ID: {$results['payment']['orderId']}";
+    echo "Email sent: " . ($results['email'] ? 'Yes' : 'Skipped');
+    echo "SMS sent: " . ($results['sms'] ? 'Yes' : 'Skipped');
+} else {
+    echo "Payment failed: {$results['payment']['error']}";
+}
+```
+
+#### Configuration Options
+
+**Extended Format:**
+```php
+[
+    'key' => [
+        'service' => $serviceInstance,              // Required: Service instance
+        'method' => 'methodName',                    // Required: Method to call
+        'args' => [...] or fn($results) => [...],   // Optional: Arguments or closure
+        'depends_on' => ['step1', 'step2'],         // Optional: Dependencies (executes after)
+        'on_failure' => 'stop',                     // Optional: stop|skip|continue
+    ]
+]
+```
+
+**Simple Format (backward compatible):**
+```php
+[
+    'key' => [$service, 'method', $args]
+]
+```
+
+#### Failure Strategies
+
+**1. `stop` (default)** - Stop entire batch if this fails:
+```php
+'payment' => [
+    'service' => $paymentService,
+    'method' => 'charge',
+    'args' => [1000, $token],
+    'on_failure' => 'stop', // Stop everything if payment fails
+]
+```
+
+**2. `skip`** - Skip dependent steps but continue others:
+```php
+'email' => [
+    'service' => $emailService,
+    'method' => 'send',
+    'args' => [$userId],
+    'depends_on' => ['payment'],
+    'on_failure' => 'skip', // Skip if payment fails, but continue other steps
+]
+```
+
+**3. `continue`** - Try anyway even if dependencies fail:
+```php
+'analytics' => [
+    'service' => $analyticsService,
+    'method' => 'track',
+    'args' => ['checkout_attempted'],
+    'on_failure' => 'continue', // Always try, even if previous steps fail
+]
+```
+
+#### Real-World Example: Complete Checkout Flow
+
+```php
+$paymentService = new PaymentService();
+$emailService = new EmailService();
+$inventoryService = new InventoryService();
+$analyticsService = new AnalyticsService();
+
+$results = BatchService::run([
+    // Step 1: Check inventory
+    'inventory_check' => [
+        'service' => $inventoryService,
+        'method' => 'checkAvailability',
+        'args' => [$productId, $quantity],
+        'on_failure' => 'stop', // Stop if out of stock
+    ],
+
+    // Step 2: Process payment (depends on inventory)
+    'payment' => [
+        'service' => $paymentService,
+        'method' => 'charge',
+        'args' => fn($r) => [$r['inventory_check']['price'], $token],
+        'depends_on' => ['inventory_check'],
+        'on_failure' => 'stop',
+    ],
+
+    // Step 3: Decrement inventory (depends on payment)
+    'inventory_update' => [
+        'service' => $inventoryService,
+        'method' => 'decrementStock',
+        'args' => fn($r) => [$productId, $quantity, $r['payment']['orderId']],
+        'depends_on' => ['payment'],
+        'on_failure' => 'stop',
+    ],
+
+    // Step 4: Send receipt (depends on payment)
+    'email' => [
+        'service' => $emailService,
+        'method' => 'sendReceipt',
+        'args' => fn($r) => [$userId, $r['payment']['orderId']],
+        'depends_on' => ['payment'],
+        'on_failure' => 'skip', // Skip email if payment fails
+    ],
+
+    // Step 5: Track analytics (always run)
+    'analytics' => [
+        'service' => $analyticsService,
+        'method' => 'trackPurchase',
+        'args' => fn($r) => [$userId, $r['payment']['orderId'] ?? null],
+        'on_failure' => 'continue', // Track even if payment fails
+    ],
+]);
+```
+
+#### Using Closure Arguments
+
+Pass data between steps using closures. The `$results` array contains all previous results:
+
+```php
+$results = BatchService::run([
+    'user' => [$userService, 'create', ['john@example.com']],
+
+    'profile' => [
+        'service' => $profileService,
+        'method' => 'create',
+        'args' => fn($r) => [
+            'user_id' => $r['user']['id'],
+            'name' => 'John Doe',
+        ],
+        'depends_on' => ['user'],
+    ],
+
+    'welcome_email' => [
+        'service' => $emailService,
+        'method' => 'sendWelcome',
+        'args' => fn($r) => [
+            $r['user']['email'],
+            $r['user']['id'],
+        ],
+        'depends_on' => ['user'],
+    ],
+]);
+```
+
+**Important:** Closures work in **server mode only**. In client mode without closures, dependencies are still respected but you must provide static arguments.
+
+#### Multiple Dependencies
+
+A step can depend on multiple previous steps:
+
+```php
+$results = BatchService::run([
+    'user' => [$userService, 'create', ['john@example.com']],
+    'payment' => [$paymentService, 'charge', [1000, $token]],
+
+    'order' => [
+        'service' => $orderService,
+        'method' => 'create',
+        'args' => fn($r) => [
+            'user_id' => $r['user']['id'],
+            'payment_id' => $r['payment']['id'],
+        ],
+        'depends_on' => ['user', 'payment'], // Both must succeed
+        'on_failure' => 'stop',
+    ],
+]);
+```
+
+#### Error Handling
+
+```php
+$results = BatchService::run([...]);
+
+// Check individual results
+if (isset($results['payment']['error'])) {
+    echo "Payment failed: {$results['payment']['error']}";
+}
+
+if (isset($results['email']['skipped'])) {
+    echo "Email was skipped: {$results['email']['reason']}";
+}
+
+// Check success
+if (!isset($results['payment']['error'])) {
+    echo "Order created successfully!";
+}
+```
+
+#### Validation
+
+The system automatically validates:
+- ✅ **Circular dependencies** - Detects A → B → A loops
+- ✅ **Missing dependencies** - Ensures all dependencies exist
+- ✅ **Topological ordering** - Executes in correct order
+- ✅ **Failure propagation** - Handles failures according to strategy
+
+**Example Error:**
+```php
+// This will throw an exception:
+BatchService::run([
+    'a' => [
+        'service' => $service,
+        'method' => 'methodA',
+        'depends_on' => ['b'], // b depends on a (circular!)
+    ],
+    'b' => [
+        'service' => $service,
+        'method' => 'methodB',
+        'depends_on' => ['a'],
+    ],
+]);
+// Exception: "Circular dependency detected: 'a' <-> 'b'"
+```
+
+**Benefits:**
+- ✅ Complex workflows in one request
+- ✅ Automatic dependency resolution
+- ✅ Pass data between steps via closures
+- ✅ Flexible failure handling
+- ✅ Works in both client and server modes
+- ✅ Validation prevents circular dependencies
+- ✅ Perfect for checkout, registration, multi-step processes
+
 ## Configuration Reference
 
 ```php
