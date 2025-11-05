@@ -227,6 +227,9 @@ class EncryptionService
     /**
      * Get current user ID for encryption
      *
+     * SECURITY: Always gets user ID from authenticated session (auth()->user())
+     * NEVER trust user ID from client request - always use server-side authentication
+     *
      * @return int|null
      */
     public static function getCurrentUserId(): ?int
@@ -235,7 +238,9 @@ class EncryptionService
             return null;
         }
 
-        // Get authenticated user ID
+        // SECURITY: Get authenticated user ID from session
+        // This ensures we ALWAYS use the server-authenticated user,
+        // never a user ID provided by the client (which could be tampered)
         $user = auth()->user();
 
         return $user ? $user->id : null;

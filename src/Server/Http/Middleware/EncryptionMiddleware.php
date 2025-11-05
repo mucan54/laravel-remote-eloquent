@@ -38,6 +38,9 @@ class EncryptionMiddleware
         // Decrypt incoming payload if present
         if ($request->has('encrypted_payload')) {
             try {
+                // SECURITY: Get user ID from authenticated session (auth()->user())
+                // NEVER trust user ID from client request payload
+                // This ensures per-user encryption uses the SERVER-authenticated user
                 $userId = EncryptionService::getCurrentUserId();
                 $encryptionService = EncryptionService::instance();
 

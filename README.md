@@ -727,21 +727,31 @@ REMOTE_ELOQUENT_ENCRYPTION_PER_USER=true
 Master Key + User ID → Unique User Key (via HKDF-SHA256)
 ```
 
+**🔒 SECURITY: User ID Source**
+- User ID is **ALWAYS** obtained from `auth()->user()` on the server
+- **NEVER** from client request (prevents tampering)
+- Server uses authenticated session to derive per-user key
+- Client cannot fake another user's encryption key
+
 **Benefits:**
 - ✅ User A cannot decrypt User B's data (even with master key)
 - ✅ Prevents cross-user data leaks
 - ✅ Compartmentalized security
 - ✅ Keys cached for performance
+- ✅ **Tamper-proof** - User ID from authentication, not client
 
 **Example:**
 ```php
-// User #1's data encrypted with key derived from master_key + user_id:1
+// User #1 authenticated via Sanctum
+// Server uses auth()->user()->id (NOT from request!)
 $posts = Post::where('user_id', 1)->get(); // Encrypted with user 1's key
 
-// User #2's data encrypted with DIFFERENT key (master_key + user_id:2)
+// User #2 authenticated via Sanctum
+// Server uses auth()->user()->id = 2
 $posts = Post::where('user_id', 2)->get(); // Encrypted with user 2's key
 
 // User 1 CANNOT decrypt User 2's responses!
+// Even if User 1 tries to fake user_id in request, server ignores it
 ```
 
 ### Configuration
@@ -998,7 +1008,9 @@ REMOTE_ELOQUENT_BATCH_MAX=10
 - [x] Keep authentication enabled (`auth_middleware=auth:sanctum`)
 - [x] **Enable payload encryption** (`REMOTE_ELOQUENT_ENCRYPTION_ENABLED=true`)
 - [x] **Generate secure encryption key** (`openssl rand -base64 32`)
+- [x] **Use SEPARATE key from APP_KEY** (encryption key is shared with clients)
 - [x] Consider per-user encryption for sensitive data
+- [x] **User IDs from auth()->user() only** (never trust client-provided IDs)
 - [x] Use HTTPS in production
 - [x] Test your Global Scopes
 - [x] Only mark necessary methods in `$remoteMethods` array
