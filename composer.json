@@ -1,21 +1,20 @@
 {
-    "name": "mucan54/laravel-remote-eloquent-server",
-    "description": "Server package for executing remote Eloquent queries with security and validation",
+    "name": "mucan54/laravel-remote-eloquent",
+    "description": "Execute Eloquent queries on remote Laravel backend with automatic Row Level Security",
     "type": "library",
-    "keywords": ["laravel", "eloquent", "remote", "api", "server", "security"],
+    "keywords": ["laravel", "eloquent", "remote", "api", "nativephp", "multi-tenancy", "rls"],
     "license": "MIT",
     "authors": [
         {
-            "name": "Your Name",
-            "email": "your.email@example.com"
+            "name": "mucan54",
+            "email": "mucan54@example.com"
         }
     ],
     "require": {
         "php": "^8.1|^8.2|^8.3",
         "illuminate/support": "^10.0|^11.0",
         "illuminate/database": "^10.0|^11.0",
-        "illuminate/http": "^10.0|^11.0",
-        "illuminate/routing": "^10.0|^11.0"
+        "illuminate/http": "^10.0|^11.0"
     },
     "require-dev": {
         "orchestra/testbench": "^8.0|^9.0",
@@ -23,18 +22,18 @@
     },
     "autoload": {
         "psr-4": {
-            "RemoteEloquent\\Server\\": "src/"
+            "RemoteEloquent\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "RemoteEloquent\\Server\\Tests\\": "tests/"
+            "RemoteEloquent\\Tests\\": "tests/"
         }
     },
     "extra": {
         "laravel": {
             "providers": [
-                "RemoteEloquent\\Server\\RemoteEloquentServiceProvider"
+                "RemoteEloquent\\RemoteEloquentServiceProvider"
             ]
         }
     },

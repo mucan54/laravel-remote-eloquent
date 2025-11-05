@@ -1,0 +1,72 @@
+<?php
+
+namespace RemoteEloquent\Server\Http\Controllers;
+
+use RemoteEloquent\Server\QueryExecutor;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
+
+/**
+ * Remote Eloquent Controller
+ *
+ * API endpoint for executing remote queries.
+ */
+class RemoteEloquentController extends Controller
+{
+    public function __construct()
+    {
+        // Require authentication
+        if (config('remote-eloquent.require_auth', true)) {
+            $this->middleware('auth:sanctum');
+        }
+
+        // Rate limiting
+        $this->middleware('throttle:100,1');
+    }
+
+    /**
+     * Execute remote query
+     *
+     * @param Request $request
+     * @param QueryExecutor $executor
+     * @return JsonResponse
+     */
+    public function execute(Request $request, QueryExecutor $executor): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'model' => 'required|string',
+                'chain' => 'required|array',
+                'method' => 'required|string',
+                'parameters' => 'sometimes|array',
+            ]);
+
+            $result = $executor->execute($validated);
+
+            return response()->json([
+                'success' => true,
+                'data' => $result,
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 400);
+        }
+    }
+
+    /**
+     * Health check
+     *
+     * @return JsonResponse
+     */
+    public function health(): JsonResponse
+    {
+        return response()->json([
+            'status' => 'healthy',
+            'mode' => config('remote-eloquent.mode', 'server'),
+        ]);
+    }
+}
