@@ -5,44 +5,209 @@ namespace RemoteEloquent\Client;
 use Illuminate\Support\Facades\Http;
 
 /**
- * Batch Service with Conditional/Dependency Execution
+ * Batch Service with Pipeline Pattern
  *
- * Execute multiple service methods with dependency management and conditional logic.
+ * Execute multiple service methods with fluent pipeline interface.
  * Works in BOTH modes - same code everywhere!
  *
- * Simple Usage:
+ * Pipeline Usage (Recommended):
+ * ```php
+ * $results = BatchService::pipeline()
+ *     ->step('payment', [$paymentService, 'charge', [1000, $token]])
+ *         ->stopOnFailure()
+ *     ->step('email', [$emailService, 'send', fn($prev) => [$prev['payment']['orderId']]])
+ *         ->skipOnFailure()
+ *     ->step('sms', [$smsService, 'send', fn($prev) => [$prev['payment']['orderId']]])
+ *         ->skipOnFailure()
+ *     ->execute();
+ * ```
+ *
+ * Array Usage (Backward Compatible):
  * ```php
  * $results = BatchService::run([
  *     'charge' => [$paymentService, 'processPayment', [1000, $token]],
  *     'email' => [$emailService, 'sendReceipt', [$userId, $orderId]],
  * ]);
  * ```
- *
- * Advanced Usage with Dependencies:
- * ```php
- * $results = BatchService::run([
- *     'payment' => [$paymentService, 'charge', [1000, $token]],
- *     'email' => [
- *         'service' => $emailService,
- *         'method' => 'sendReceipt',
- *         'args' => fn($results) => [$userId, $results['payment']['orderId']],
- *         'depends_on' => ['payment'],
- *         'on_failure' => 'skip', // skip|stop|continue
- *     ],
- *     'sms' => [
- *         'service' => $smsService,
- *         'method' => 'sendConfirmation',
- *         'args' => fn($results) => [$phone, $results['payment']['orderId']],
- *         'depends_on' => ['payment'],
- *         'on_failure' => 'skip',
- *     ],
- * ]);
- * ```
  */
 class BatchService
 {
+    protected array $pipelineSteps = [];
+    protected bool $isPipeline = false;
+    protected string $currentStepKey = '';
+
     /**
-     * Execute batch service calls with dependency resolution
+     * Create a new pipeline instance
+     *
+     * @return static
+     */
+    public static function pipeline(): self
+    {
+        $instance = new self();
+        $instance->isPipeline = true;
+        return $instance;
+    }
+
+    /**
+     * Add a step to the pipeline
+     *
+     * Supports multiple formats:
+     * - ->step('key', [$service, 'method', $args])
+     * - ->step('key', $service, 'method', $args)
+     *
+     * @param string $key Step identifier
+     * @param mixed ...$config Service configuration
+     * @return $this
+     */
+    public function step(string $key, ...$config): self
+    {
+        // Parse configuration
+        if (count($config) === 1 && is_array($config[0])) {
+            // Format: ->step('payment', [$service, 'method', $args])
+            $serviceConfig = $config[0];
+        } else if (count($config) >= 2) {
+            // Format: ->step('payment', $service, 'method', $args)
+            $serviceConfig = [
+                $config[0],  // service
+                $config[1],  // method
+                $config[2] ?? []  // args
+            ];
+        } else {
+            throw new \InvalidArgumentException("Invalid step configuration for '{$key}'");
+        }
+
+        // Store step with default settings
+        $this->pipelineSteps[$key] = [
+            'config' => $serviceConfig,
+            'on_failure' => 'continue', // default: continue on failure
+            'depends_on' => null, // will be set to previous steps by default
+        ];
+
+        $this->currentStepKey = $key;
+
+        return $this;
+    }
+
+    /**
+     * Stop entire pipeline if this step fails
+     *
+     * @return $this
+     */
+    public function stopOnFailure(): self
+    {
+        if ($this->currentStepKey) {
+            $this->pipelineSteps[$this->currentStepKey]['on_failure'] = 'stop';
+        }
+        return $this;
+    }
+
+    /**
+     * Skip dependent steps if this step fails
+     *
+     * @return $this
+     */
+    public function skipOnFailure(): self
+    {
+        if ($this->currentStepKey) {
+            $this->pipelineSteps[$this->currentStepKey]['on_failure'] = 'skip';
+        }
+        return $this;
+    }
+
+    /**
+     * Continue even if this step fails
+     *
+     * @return $this
+     */
+    public function continueOnFailure(): self
+    {
+        if ($this->currentStepKey) {
+            $this->pipelineSteps[$this->currentStepKey]['on_failure'] = 'continue';
+        }
+        return $this;
+    }
+
+    /**
+     * Set explicit dependencies for current step
+     *
+     * @param string ...$dependencies Step keys this step depends on
+     * @return $this
+     */
+    public function dependsOn(string ...$dependencies): self
+    {
+        if ($this->currentStepKey) {
+            $this->pipelineSteps[$this->currentStepKey]['depends_on'] = $dependencies;
+        }
+        return $this;
+    }
+
+    /**
+     * Execute the pipeline
+     *
+     * @return array Results keyed by step names
+     * @throws \Exception
+     */
+    public function execute(): array
+    {
+        if (!$this->isPipeline) {
+            throw new \Exception("execute() can only be called on pipeline instances");
+        }
+
+        // Convert pipeline to services array
+        $services = $this->buildServicesFromPipeline();
+
+        // Execute using run() method
+        return self::run($services);
+    }
+
+    /**
+     * Convert pipeline steps to services array format
+     *
+     * @return array
+     */
+    protected function buildServicesFromPipeline(): array
+    {
+        $services = [];
+        $previousSteps = [];
+
+        foreach ($this->pipelineSteps as $key => $step) {
+            $config = $step['config'];
+
+            // Parse service config
+            if (count($config) >= 2) {
+                $service = $config[0];
+                $method = $config[1];
+                $args = $config[2] ?? [];
+            } else {
+                throw new \InvalidArgumentException("Invalid step configuration for '{$key}'");
+            }
+
+            // Build service entry
+            $serviceEntry = [
+                'service' => $service,
+                'method' => $method,
+                'args' => $args,
+                'on_failure' => $step['on_failure'],
+            ];
+
+            // Handle dependencies
+            if ($step['depends_on'] !== null) {
+                // Explicit dependencies
+                $serviceEntry['depends_on'] = $step['depends_on'];
+            } else {
+                // Implicit dependencies: all previous steps (for closures to access results)
+                $serviceEntry['depends_on'] = $previousSteps;
+            }
+
+            $services[$key] = $serviceEntry;
+            $previousSteps[] = $key;
+        }
+
+        return $services;
+    }
+
+    /**
+     * Execute batch service calls with dependency resolution (Array API)
      *
      * @param array $services Array of service configurations
      * @return array Results keyed by service keys
