@@ -16,9 +16,18 @@ class RemoteEloquentController extends Controller
 {
     public function __construct()
     {
-        // Require authentication
-        if (config('remote-eloquent.require_auth', true)) {
-            $this->middleware('auth:sanctum');
+        // Apply authentication middleware from config
+        $authMiddleware = config('remote-eloquent.auth_middleware');
+
+        if ($authMiddleware !== null) {
+            // Support both string and array of middleware
+            if (is_array($authMiddleware)) {
+                foreach ($authMiddleware as $middleware) {
+                    $this->middleware($middleware);
+                }
+            } else {
+                $this->middleware($authMiddleware);
+            }
         }
 
         // Rate limiting

@@ -33,19 +33,45 @@ cache()->put('remote_eloquent_token', $token);
 
 ### Server Mode (Backend API)
 
+**Install Laravel Sanctum** (recommended for mobile apps):
+```bash
+composer require laravel/sanctum
+php artisan vendor:publish --provider="Laravel\Sanctum\ServiceProvider"
+php artisan migrate
+```
+
 `.env`:
 ```env
 REMOTE_ELOQUENT_MODE=server
-REMOTE_ELOQUENT_REQUIRE_AUTH=true
+REMOTE_ELOQUENT_AUTH_MIDDLEWARE=auth:sanctum
 ```
 
 `config/remote-eloquent.php`:
 ```php
+// Authentication (defaults to Sanctum)
+'auth_middleware' => env('REMOTE_ELOQUENT_AUTH_MIDDLEWARE', 'auth:sanctum'),
+
+// Model whitelist
 'allowed_models' => [
     'Post',
     'Comment',
     'Product',
 ],
+```
+
+**Alternative authentication:**
+```php
+// Laravel Passport
+'auth_middleware' => 'auth:api',
+
+// JWT Auth
+'auth_middleware' => 'jwt.auth',
+
+// Multiple middleware
+'auth_middleware' => ['auth:sanctum', 'verified'],
+
+// Disable authentication (NOT recommended)
+'auth_middleware' => null,
 ```
 
 ## Usage
@@ -283,8 +309,8 @@ return [
     // Client: API URL
     'api_url' => env('REMOTE_ELOQUENT_API_URL'),
 
-    // Server: Require auth
-    'require_auth' => env('REMOTE_ELOQUENT_REQUIRE_AUTH', true),
+    // Server: Authentication middleware (Sanctum by default)
+    'auth_middleware' => env('REMOTE_ELOQUENT_AUTH_MIDDLEWARE', 'auth:sanctum'),
 
     // Server: Model whitelist
     'allowed_models' => [
@@ -317,16 +343,30 @@ REMOTE_ELOQUENT_API_URL=https://api.yourapp.com
 ### Server (Backend)
 ```env
 REMOTE_ELOQUENT_MODE=server
-REMOTE_ELOQUENT_REQUIRE_AUTH=true
+REMOTE_ELOQUENT_AUTH_MIDDLEWARE=auth:sanctum
+```
+
+**Optional:**
+```env
+# Disable authentication (NOT recommended)
+REMOTE_ELOQUENT_AUTH_MIDDLEWARE=
+
+# Use Laravel Passport
+REMOTE_ELOQUENT_AUTH_MIDDLEWARE=auth:api
+
+# Batch settings
+REMOTE_ELOQUENT_BATCH_ENABLED=true
+REMOTE_ELOQUENT_BATCH_MAX=10
 ```
 
 ## Security Checklist
 
 - [x] Use `REMOTE_ELOQUENT_MODE=server` on backend
 - [x] Use `REMOTE_ELOQUENT_MODE=client` on mobile
+- [x] Install and configure Laravel Sanctum
 - [x] Configure `allowed_models` whitelist
 - [x] Add Global Scopes to all models
-- [x] Enable authentication (`REMOTE_ELOQUENT_REQUIRE_AUTH=true`)
+- [x] Keep authentication enabled (`auth_middleware=auth:sanctum`)
 - [x] Use HTTPS in production
 - [x] Test your Global Scopes
 

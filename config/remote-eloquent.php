@@ -37,13 +37,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Authentication Required (Server Mode)
+    | Authentication Middleware (Server Mode)
     |--------------------------------------------------------------------------
     |
-    | Require Laravel Sanctum authentication for API requests.
+    | Specify the authentication middleware for API requests.
+    |
+    | Default: 'auth:sanctum' (Laravel Sanctum - recommended)
+    |
+    | Examples:
+    | - 'auth:sanctum'     - Laravel Sanctum (default, best for SPAs/mobile)
+    | - 'auth:api'         - Laravel Passport
+    | - 'jwt.auth'         - JWT Auth
+    | - null               - Disable authentication (NOT recommended for production)
+    | - ['auth:sanctum', 'throttle:100,1'] - Multiple middleware
     |
     */
-    'require_auth' => env('REMOTE_ELOQUENT_REQUIRE_AUTH', true),
+    'auth_middleware' => env('REMOTE_ELOQUENT_AUTH_MIDDLEWARE', 'auth:sanctum'),
 
     /*
     |--------------------------------------------------------------------------
