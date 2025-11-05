@@ -187,7 +187,10 @@ class EncryptionService
         // This ensures: master_key + user_id = unique key per user
 
         $info = "remote-eloquent-user-{$userId}";
-        $salt = hash('sha256', $this->masterKey . config('app.key'), true);
+
+        // Use static salt derived from master key
+        // DO NOT use config('app.key') as this encryption key is shared with client
+        $salt = hash('sha256', 'remote-eloquent-salt-v1:' . $this->masterKey, true);
 
         // Derive 256-bit key
         return hash_hkdf('sha256', $this->masterKey, 32, $info, $salt);

@@ -654,17 +654,38 @@ Encrypt all API payloads end-to-end for maximum security. **Works in BOTH modes!
 
 **1. Generate Encryption Key:**
 ```bash
-# Generate secure 256-bit key
+# Generate secure 256-bit key (SEPARATE from Laravel's APP_KEY!)
 openssl rand -base64 32
 ```
 
+⚠️ **IMPORTANT SECURITY NOTE:**
+- This is a **SEPARATE** key from Laravel's `APP_KEY`
+- **NEVER** use Laravel's `APP_KEY` for this encryption
+- This key will be **shared between client and server** (mobile app needs it)
+- Laravel's `APP_KEY` must **stay on the server only**
+- Generate a dedicated key specifically for Remote Eloquent encryption
+
 **2. Configure Environment:**
+
+**Server (.env):**
 ```env
 # Enable encryption
 REMOTE_ELOQUENT_ENCRYPTION_ENABLED=true
 
-# Paste generated key
+# Paste generated key (SEPARATE from APP_KEY!)
 REMOTE_ELOQUENT_ENCRYPTION_KEY="your-generated-key-here"
+
+# Optional: Enable per-user encryption
+REMOTE_ELOQUENT_ENCRYPTION_PER_USER=false
+```
+
+**Client/Mobile (.env):**
+```env
+# Enable encryption
+REMOTE_ELOQUENT_ENCRYPTION_ENABLED=true
+
+# SAME key as server (this is why it must be separate from APP_KEY!)
+REMOTE_ELOQUENT_ENCRYPTION_KEY="same-key-as-server"
 
 # Optional: Enable per-user encryption
 REMOTE_ELOQUENT_ENCRYPTION_PER_USER=false
@@ -703,7 +724,7 @@ REMOTE_ELOQUENT_ENCRYPTION_PER_USER=true
 
 **How it works:**
 ```
-Master Key + User ID + App Key → Unique User Key (via HKDF)
+Master Key + User ID → Unique User Key (via HKDF-SHA256)
 ```
 
 **Benefits:**
@@ -732,6 +753,8 @@ $posts = Post::where('user_id', 2)->get(); // Encrypted with user 2's key
     'enabled' => env('REMOTE_ELOQUENT_ENCRYPTION_ENABLED', false),
 
     // Master encryption key (REQUIRED when enabled)
+    // IMPORTANT: Use a SEPARATE key from Laravel's APP_KEY!
+    // This key is shared between client and server.
     'master_key' => env('REMOTE_ELOQUENT_ENCRYPTION_KEY', ''),
 
     // Per-user encryption (optional)
@@ -827,6 +850,10 @@ $decrypted = $service->decrypt($encrypted, auth()->id());
 ### Important Notes
 
 ⚠️ **Key Management:**
+- **NEVER use Laravel's `APP_KEY`** - This encryption key is shared with mobile clients!
+- Laravel's `APP_KEY` must stay on the server only
+- Generate a **separate, dedicated key** for Remote Eloquent encryption
+- This key will be the **same on both client and server** (that's why it must be separate!)
 - Store `REMOTE_ELOQUENT_ENCRYPTION_KEY` securely (never commit to Git)
 - Use different keys for dev/staging/production
 - Rotate keys periodically for maximum security

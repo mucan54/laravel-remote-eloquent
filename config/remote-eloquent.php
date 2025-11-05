@@ -139,7 +139,11 @@ return [
     | - High performance (<0.01ms overhead)
     | - Prevents payload inspection/tampering
     |
-    | IMPORTANT: Generate a secure key using: php artisan key:generate
+    | IMPORTANT SECURITY NOTES:
+    | - Generate a SEPARATE key (NOT Laravel's APP_KEY!)
+    | - This key is shared between client and server
+    | - Laravel's APP_KEY must stay on server only
+    | - Generate using: openssl rand -base64 32
     |
     */
     'encryption' => [
@@ -147,11 +151,12 @@ return [
         'enabled' => env('REMOTE_ELOQUENT_ENCRYPTION_ENABLED', false),
 
         // Master encryption key (REQUIRED when encryption is enabled)
+        // WARNING: Use a SEPARATE key from APP_KEY! This key is shared with mobile clients.
         // Generate: openssl rand -base64 32
         'master_key' => env('REMOTE_ELOQUENT_ENCRYPTION_KEY', ''),
 
         // Per-user encryption: Each user gets unique encryption key
-        // Derived from: master_key + user_id + app_key
+        // Derived from: master_key + user_id (via HKDF-SHA256)
         // Benefits: Prevents cross-user data access even if master key leaks
         'per_user' => env('REMOTE_ELOQUENT_ENCRYPTION_PER_USER', false),
     ],
