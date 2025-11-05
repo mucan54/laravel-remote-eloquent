@@ -118,6 +118,37 @@ class RemoteEloquentController extends Controller
     }
 
     /**
+     * Execute remote service method
+     *
+     * @param Request $request
+     * @param \RemoteEloquent\Server\ServiceExecutor $executor
+     * @return JsonResponse
+     */
+    public function service(Request $request, \RemoteEloquent\Server\ServiceExecutor $executor): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'service' => 'required|string',
+                'method' => 'required|string',
+                'arguments' => 'sometimes|array',
+            ]);
+
+            $result = $executor->execute($validated);
+
+            return response()->json([
+                'success' => true,
+                'data' => $result,
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 400);
+        }
+    }
+
+    /**
      * Health check
      *
      * @return JsonResponse

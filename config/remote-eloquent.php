@@ -71,6 +71,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Allowed Services (Server Mode)
+    |--------------------------------------------------------------------------
+    |
+    | Whitelist of service classes that can execute methods remotely.
+    | Useful for services with server-side credentials (Stripe, AWS, etc.)
+    |
+    | IMPORTANT: Configure this for security!
+    |
+    */
+    'allowed_services' => [
+        // 'App\Services\PaymentService',
+        // 'App\Services\EmailService',
+        // 'App\Services\*', // All services in App\Services namespace
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Allowed Methods
     |--------------------------------------------------------------------------
     |

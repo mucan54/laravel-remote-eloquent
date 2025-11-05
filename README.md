@@ -297,6 +297,116 @@ $results = BatchQuery::run([
 - ✅ Lower latency
 - ✅ Automatic error handling per query
 
+### Remote Services (Server-Side Logic!)
+
+Execute service methods remotely when they need server-side credentials or resources.
+
+**Use Cases:**
+- Payment processing (Stripe keys only on server)
+- Email sending (SMTP credentials only on server)
+- External API calls (API keys only on server)
+- AWS/Cloud operations (credentials only on server)
+
+**Usage:**
+
+```php
+<?php
+
+namespace App\Services;
+
+use RemoteEloquent\Client\RemoteService;
+
+class PaymentService
+{
+    use RemoteService;
+
+    /**
+     * Methods in this array will execute on SERVER
+     * (has access to STRIPE_SECRET_KEY in server .env)
+     */
+    protected array $remoteMethods = [
+        'processPayment',
+        'refundPayment',
+        'createCustomer',
+    ];
+
+    /**
+     * This runs on SERVER (has Stripe secret key)
+     */
+    public function processPayment(int $amount, string $token)
+    {
+        \Stripe\Stripe::setApiKey(env('STRIPE_SECRET_KEY'));
+
+        $charge = \Stripe\Charge::create([
+            'amount' => $amount,
+            'currency' => 'usd',
+            'source' => $token,
+        ]);
+
+        return $charge->id;
+    }
+
+    /**
+     * This runs LOCALLY (not in $remoteMethods)
+     */
+    public function calculateFee(int $amount)
+    {
+        return $amount * 0.029 + 30; // Local calculation
+    }
+}
+```
+
+**In Mobile App:**
+```php
+$paymentService = new PaymentService();
+
+// Executes on SERVER (secure!)
+$chargeId = $paymentService->processPayment(1000, $token);
+
+// Executes LOCALLY
+$fee = $paymentService->calculateFee(1000);
+```
+
+**Server Configuration:**
+```php
+// config/remote-eloquent.php
+'allowed_services' => [
+    'App\Services\PaymentService',
+    'App\Services\EmailService',
+    'App\Services\*', // All services in App\Services
+],
+```
+
+**Real-World Example (Email Service):**
+```php
+class EmailService
+{
+    use RemoteService;
+
+    protected array $remoteMethods = ['sendWelcomeEmail', 'sendInvoice'];
+
+    public function sendWelcomeEmail(int $userId)
+    {
+        $user = User::find($userId);
+
+        // Server has MAIL_* credentials
+        Mail::to($user->email)->send(new WelcomeEmail($user));
+
+        return true;
+    }
+}
+
+// Mobile app
+$emailService = new EmailService();
+$emailService->sendWelcomeEmail(auth()->id()); // Executes on server
+```
+
+**Benefits:**
+- ✅ Keep secrets on server only
+- ✅ Same code works in both environments
+- ✅ Automatic serialization/deserialization
+- ✅ Type-safe method calls
+
 ## Configuration Reference
 
 ```php
@@ -316,6 +426,12 @@ return [
     'allowed_models' => [
         'Post',
         'Comment',
+    ],
+
+    // Server: Service whitelist
+    'allowed_services' => [
+        'App\Services\PaymentService',
+        'App\Services\*', // All in App\Services
     ],
 
     // Allowed methods
@@ -365,10 +481,12 @@ REMOTE_ELOQUENT_BATCH_MAX=10
 - [x] Use `REMOTE_ELOQUENT_MODE=client` on mobile
 - [x] Install and configure Laravel Sanctum
 - [x] Configure `allowed_models` whitelist
+- [x] Configure `allowed_services` whitelist (if using RemoteService)
 - [x] Add Global Scopes to all models
 - [x] Keep authentication enabled (`auth_middleware=auth:sanctum`)
 - [x] Use HTTPS in production
 - [x] Test your Global Scopes
+- [x] Only mark necessary methods in `$remoteMethods` array
 
 ## API Endpoints
 
@@ -376,6 +494,7 @@ When in server mode, these endpoints are automatically registered:
 
 - `POST /api/remote-eloquent/execute` - Execute single query
 - `POST /api/remote-eloquent/batch` - Execute batch queries
+- `POST /api/remote-eloquent/service` - Execute remote service method
 - `GET /api/remote-eloquent/health` - Health check
 
 ## Testing

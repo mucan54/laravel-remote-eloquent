@@ -65,6 +65,11 @@ class RemoteEloquentServiceProvider extends ServiceProvider
                     'batch'
                 ])->name('remote-eloquent.batch');
 
+                Route::post('/service', [
+                    \RemoteEloquent\Server\Http\Controllers\RemoteEloquentController::class,
+                    'service'
+                ])->name('remote-eloquent.service');
+
                 Route::get('/health', [
                     \RemoteEloquent\Server\Http\Controllers\RemoteEloquentController::class,
                     'health'
