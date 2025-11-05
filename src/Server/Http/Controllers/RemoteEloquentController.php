@@ -58,6 +58,57 @@ class RemoteEloquentController extends Controller
     }
 
     /**
+     * Execute batch queries
+     *
+     * @param Request $request
+     * @param QueryExecutor $executor
+     * @return JsonResponse
+     */
+    public function batch(Request $request, QueryExecutor $executor): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'queries' => 'required|array',
+                'queries.*' => 'required|array',
+            ]);
+
+            // Check batch limit
+            $maxBatch = config('remote-eloquent.batch.max_queries', 10);
+            if (count($validated['queries']) > $maxBatch) {
+                return response()->json([
+                    'success' => false,
+                    'error' => "Batch limit exceeded. Maximum {$maxBatch} queries allowed.",
+                ], 400);
+            }
+
+            $results = [];
+            $errors = [];
+
+            // Execute each query
+            foreach ($validated['queries'] as $key => $ast) {
+                try {
+                    $results[$key] = $executor->execute($ast);
+                } catch (\Exception $e) {
+                    $results[$key] = ['error' => $e->getMessage()];
+                    $errors[] = $key;
+                }
+            }
+
+            return response()->json([
+                'success' => empty($errors),
+                'data' => $results,
+                'errors' => $errors,
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 400);
+        }
+    }
+
+    /**
      * Health check
      *
      * @return JsonResponse

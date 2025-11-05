@@ -176,6 +176,16 @@ class RemoteQueryBuilder extends Builder
     {
         return cache(config('remote-eloquent.auth.cache_key', 'remote_eloquent_token'));
     }
+
+    /**
+     * Get the captured method chain (for batch queries)
+     *
+     * @return array
+     */
+    public function getMethodChain(): array
+    {
+        return $this->methodChain;
+    }
 }
 
 /**

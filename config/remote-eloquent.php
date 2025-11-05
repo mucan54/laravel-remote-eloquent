@@ -87,4 +87,17 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Batch Queries
+    |--------------------------------------------------------------------------
+    |
+    | Configure batch query execution to improve performance.
+    |
+    */
+    'batch' => [
+        'enabled' => env('REMOTE_ELOQUENT_BATCH_ENABLED', true),
+        'max_queries' => env('REMOTE_ELOQUENT_BATCH_MAX', 10),
+    ],
+
 ];

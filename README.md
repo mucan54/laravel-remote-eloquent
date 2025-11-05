@@ -229,6 +229,48 @@ class PostList extends Component
 }
 ```
 
+### Batch Queries (Performance!)
+
+Execute multiple queries in a single HTTP request:
+
+```php
+use RemoteEloquent\Client\BatchQuery;
+
+// Execute multiple queries at once
+$results = BatchQuery::run([
+    'posts' => Post::where('status', 'published')->limit(10),
+    'recentComments' => Comment::latest()->limit(5),
+    'postCount' => Post::where('status', 'published')->count(),
+    'userData' => User::with('profile')->find(auth()->id()),
+]);
+
+// Access results
+$posts = $results['posts'];              // Collection
+$recentComments = $results['recentComments'];  // Collection
+$postCount = $results['postCount'];      // int
+$userData = $results['userData'];        // object
+
+// Advanced: Custom method/parameters
+$results = BatchQuery::run([
+    'published' => [
+        'query' => Post::where('status', 'published'),
+        'method' => 'paginate',
+        'parameters' => [20]
+    ],
+    'drafts' => [
+        'query' => Post::where('status', 'draft'),
+        'method' => 'count',
+        'parameters' => []
+    ],
+]);
+```
+
+**Benefits:**
+- ✅ Reduce HTTP requests (10 queries = 1 request instead of 10!)
+- ✅ Better mobile app performance
+- ✅ Lower latency
+- ✅ Automatic error handling per query
+
 ## Configuration Reference
 
 ```php
@@ -254,6 +296,12 @@ return [
     'allowed_methods' => [
         'chain' => ['where', 'with', 'orderBy', 'limit', ...],
         'terminal' => ['get', 'first', 'find', 'count', 'paginate', ...],
+    ],
+
+    // Batch queries
+    'batch' => [
+        'enabled' => true,
+        'max_queries' => 10,
     ],
 ];
 ```
@@ -286,7 +334,8 @@ REMOTE_ELOQUENT_REQUIRE_AUTH=true
 
 When in server mode, these endpoints are automatically registered:
 
-- `POST /api/remote-eloquent/execute` - Execute query
+- `POST /api/remote-eloquent/execute` - Execute single query
+- `POST /api/remote-eloquent/batch` - Execute batch queries
 - `GET /api/remote-eloquent/health` - Health check
 
 ## Testing
@@ -295,7 +344,7 @@ When in server mode, these endpoints are automatically registered:
 // Test health
 GET https://api.yourapp.com/api/remote-eloquent/health
 
-// Test query
+// Test single query
 POST https://api.yourapp.com/api/remote-eloquent/execute
 Authorization: Bearer {token}
 
@@ -307,6 +356,27 @@ Authorization: Bearer {token}
     ],
     "method": "get",
     "parameters": []
+}
+
+// Test batch queries
+POST https://api.yourapp.com/api/remote-eloquent/batch
+Authorization: Bearer {token}
+
+{
+    "queries": {
+        "posts": {
+            "model": "Post",
+            "chain": [{"method": "where", "parameters": ["status", "published"]}],
+            "method": "get",
+            "parameters": []
+        },
+        "postCount": {
+            "model": "Post",
+            "chain": [{"method": "where", "parameters": ["status", "published"]}],
+            "method": "count",
+            "parameters": []
+        }
+    }
 }
 ```
 
