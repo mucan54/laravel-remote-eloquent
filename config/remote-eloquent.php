@@ -155,6 +155,11 @@ return [
         // Generate: openssl rand -base64 32
         'master_key' => env('REMOTE_ELOQUENT_ENCRYPTION_KEY', ''),
 
+        // Encrypt responses (optional, default: true)
+        // Set to false if you want to encrypt requests only (for debugging or performance)
+        // Requests are always encrypted when encryption is enabled
+        'encrypt_responses' => env('REMOTE_ELOQUENT_ENCRYPTION_RESPONSES', true),
+
         // Per-user encryption: Each user gets unique encryption key
         // Derived from: master_key + user_id (via HKDF-SHA256)
         // Benefits: Prevents cross-user data access even if master key leaks

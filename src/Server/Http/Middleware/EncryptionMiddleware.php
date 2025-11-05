@@ -68,9 +68,14 @@ class EncryptionMiddleware
         // Process request
         $response = $next($request);
 
-        // Encrypt response if request was encrypted
+        // Encrypt response if request was encrypted AND response encryption is enabled
         if ($request->attributes->get('_encryption_enabled', false)) {
-            $response = $this->encryptResponse($response, $request);
+            // Check if response encryption is enabled
+            $encryptResponses = config('remote-eloquent.encryption.encrypt_responses', true);
+
+            if ($encryptResponses) {
+                $response = $this->encryptResponse($response, $request);
+            }
         }
 
         return $response;

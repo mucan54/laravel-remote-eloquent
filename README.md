@@ -757,9 +757,40 @@ $posts = Post::where('user_id', 2)->get(); // Encrypted with user 2's key
     // This key is shared between client and server.
     'master_key' => env('REMOTE_ELOQUENT_ENCRYPTION_KEY', ''),
 
+    // Encrypt responses (optional, default: true)
+    // Set to false to encrypt requests only (useful for debugging or performance)
+    'encrypt_responses' => env('REMOTE_ELOQUENT_ENCRYPTION_RESPONSES', true),
+
     // Per-user encryption (optional)
     'per_user' => env('REMOTE_ELOQUENT_ENCRYPTION_PER_USER', false),
 ],
+```
+
+**Optional: Encrypt Requests Only**
+
+You can choose to encrypt only requests (client → server) and leave responses unencrypted:
+
+```env
+# Encrypt requests but NOT responses
+REMOTE_ELOQUENT_ENCRYPTION_ENABLED=true
+REMOTE_ELOQUENT_ENCRYPTION_KEY="your-key-here"
+REMOTE_ELOQUENT_ENCRYPTION_RESPONSES=false
+```
+
+**Use Cases:**
+- **Debugging** - Easier to inspect response data during development
+- **Performance** - Slightly faster if responses don't need encryption
+- **Public Data** - If responses contain only public data (posts, products, etc.)
+- **Sensitive Input Only** - Protect user input (passwords, payment info) but not server responses
+
+**Example:**
+```php
+// Request: User's password encrypted ✅
+POST /api/remote-eloquent/execute
+{ encrypted_payload: "..." }
+
+// Response: Posts data unencrypted (easier to debug)
+{ success: true, data: [{ id: 1, title: "Hello" }] }
 ```
 
 ### Security Properties
@@ -911,6 +942,7 @@ return [
     'encryption' => [
         'enabled' => env('REMOTE_ELOQUENT_ENCRYPTION_ENABLED', false),
         'master_key' => env('REMOTE_ELOQUENT_ENCRYPTION_KEY', ''),
+        'encrypt_responses' => env('REMOTE_ELOQUENT_ENCRYPTION_RESPONSES', true),
         'per_user' => env('REMOTE_ELOQUENT_ENCRYPTION_PER_USER', false),
     ],
 ];
@@ -926,6 +958,7 @@ REMOTE_ELOQUENT_API_URL=https://api.yourapp.com
 # Encryption (optional but recommended)
 REMOTE_ELOQUENT_ENCRYPTION_ENABLED=true
 REMOTE_ELOQUENT_ENCRYPTION_KEY="your-generated-key-here"
+REMOTE_ELOQUENT_ENCRYPTION_RESPONSES=true
 REMOTE_ELOQUENT_ENCRYPTION_PER_USER=false
 ```
 
@@ -937,6 +970,7 @@ REMOTE_ELOQUENT_AUTH_MIDDLEWARE=auth:sanctum
 # Encryption (optional but recommended)
 REMOTE_ELOQUENT_ENCRYPTION_ENABLED=true
 REMOTE_ELOQUENT_ENCRYPTION_KEY="same-key-as-client"
+REMOTE_ELOQUENT_ENCRYPTION_RESPONSES=true
 REMOTE_ELOQUENT_ENCRYPTION_PER_USER=false
 ```
 
