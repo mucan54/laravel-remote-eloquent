@@ -52,8 +52,16 @@ class RemoteEloquentServiceProvider extends ServiceProvider
      */
     protected function registerRoutes(): void
     {
+        // Build middleware stack
+        $middleware = ['api'];
+
+        // Add encryption middleware if enabled
+        if (config('remote-eloquent.encryption.enabled', false)) {
+            $middleware[] = \RemoteEloquent\Server\Http\Middleware\EncryptionMiddleware::class;
+        }
+
         Route::prefix('api/remote-eloquent')
-            ->middleware(['api'])
+            ->middleware($middleware)
             ->group(function () {
                 Route::post('/execute', [
                     \RemoteEloquent\Server\Http\Controllers\RemoteEloquentController::class,

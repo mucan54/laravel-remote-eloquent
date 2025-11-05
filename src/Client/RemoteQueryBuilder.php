@@ -76,15 +76,35 @@ class RemoteQueryBuilder extends Builder
         $apiUrl = config('remote-eloquent.api_url');
         $token = $this->getAuthToken();
 
+        // Handle encryption if enabled
+        $payload = $ast;
+        if (\RemoteEloquent\Security\EncryptionService::isEnabled()) {
+            $encryptionService = \RemoteEloquent\Security\EncryptionService::instance();
+            $userId = \RemoteEloquent\Security\EncryptionService::getCurrentUserId();
+
+            $payload = [
+                'encrypted_payload' => $encryptionService->encrypt($ast, $userId)
+            ];
+        }
+
         $response = Http::timeout(30)
             ->withToken($token)
-            ->post("{$apiUrl}/api/remote-eloquent/execute", $ast);
+            ->post("{$apiUrl}/api/remote-eloquent/execute", $payload);
 
         if (!$response->successful()) {
             throw new \Exception("Remote query failed: " . $response->body());
         }
 
-        $data = $response->json('data');
+        // Handle encrypted response
+        $responseData = $response->json();
+        if (isset($responseData['encrypted']) && $responseData['encrypted'] === true) {
+            $encryptionService = \RemoteEloquent\Security\EncryptionService::instance();
+            $userId = \RemoteEloquent\Security\EncryptionService::getCurrentUserId();
+            $decrypted = $encryptionService->decrypt($responseData['payload'], $userId);
+            $data = $decrypted['data'] ?? $decrypted;
+        } else {
+            $data = $responseData['data'];
+        }
 
         // Transform result
         return match($method) {

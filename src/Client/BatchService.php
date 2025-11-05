@@ -254,15 +254,35 @@ class BatchService
         $apiUrl = config('remote-eloquent.api_url');
         $token = cache(config('remote-eloquent.auth.cache_key', 'remote_eloquent_token'));
 
+        // Handle encryption if enabled
+        $payload = ['services' => $batch];
+        if (\RemoteEloquent\Security\EncryptionService::isEnabled()) {
+            $encryptionService = \RemoteEloquent\Security\EncryptionService::instance();
+            $userId = \RemoteEloquent\Security\EncryptionService::getCurrentUserId();
+
+            $payload = [
+                'encrypted_payload' => $encryptionService->encrypt(['services' => $batch], $userId)
+            ];
+        }
+
         $response = Http::timeout(60)
             ->withToken($token)
-            ->post("{$apiUrl}/api/remote-eloquent/batch-service", ['services' => $batch]);
+            ->post("{$apiUrl}/api/remote-eloquent/batch-service", $payload);
 
         if (!$response->successful()) {
             throw new \Exception("Batch service execution failed: " . $response->body());
         }
 
-        $results = $response->json('data');
+        // Handle encrypted response
+        $responseData = $response->json();
+        if (isset($responseData['encrypted']) && $responseData['encrypted'] === true) {
+            $encryptionService = \RemoteEloquent\Security\EncryptionService::instance();
+            $userId = \RemoteEloquent\Security\EncryptionService::getCurrentUserId();
+            $decrypted = $encryptionService->decrypt($responseData['payload'], $userId);
+            $results = $decrypted['data'] ?? $decrypted;
+        } else {
+            $results = $responseData['data'];
+        }
 
         // Deserialize results
         return array_map([static::class, 'deserializeResult'], $results);
