@@ -166,4 +166,36 @@ return [
         'per_user' => env('REMOTE_ELOQUENT_ENCRYPTION_PER_USER', false),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Anti-Replay Attack Protection
+    |--------------------------------------------------------------------------
+    |
+    | Prevent replay attacks by validating timestamps and request UUIDs.
+    |
+    | Timestamp Validation:
+    | - Rejects requests older than specified minutes
+    | - Prevents captured payloads from being replayed later
+    |
+    | UUID/Nonce Validation:
+    | - Each request has unique UUID that can only be used once
+    | - UUIDs cached for timestamp duration to prevent reuse
+    | - Prevents replay attacks even within time window
+    |
+    | Combined: Maximum security - requests expire AND can only be sent once
+    |
+    */
+    'anti_replay' => [
+        // Enable timestamp validation
+        'timestamp_enabled' => env('REMOTE_ELOQUENT_TIMESTAMP_ENABLED', false),
+
+        // Request expiration time in minutes
+        // Requests older than this are rejected
+        'timestamp_minutes' => env('REMOTE_ELOQUENT_TIMESTAMP_MINS', 5),
+
+        // Enable UUID/nonce validation
+        // Each request UUID can only be used once
+        'uuid_enabled' => env('REMOTE_ELOQUENT_UUID_ENABLED', false),
+    ],
+
 ];

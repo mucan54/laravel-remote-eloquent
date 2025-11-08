@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use RemoteEloquent\Security\EncryptionService;
+use RemoteEloquent\Security\AntiReplayValidator;
 
 /**
  * Encryption Middleware
@@ -49,6 +50,13 @@ class EncryptionMiddleware
                     $request->input('encrypted_payload'),
                     $userId
                 );
+
+                // Validate anti-replay (timestamp & UUID)
+                // This prevents replay attacks even with valid encrypted payloads
+                AntiReplayValidator::validate($decryptedData);
+
+                // Remove security fields from payload before processing
+                $decryptedData = AntiReplayValidator::removeSecurityFields($decryptedData);
 
                 // Replace request data with decrypted payload
                 $request->merge($decryptedData);

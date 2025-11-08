@@ -82,8 +82,11 @@ class RemoteQueryBuilder extends Builder
             $encryptionService = \RemoteEloquent\Security\EncryptionService::instance();
             $userId = \RemoteEloquent\Security\EncryptionService::getCurrentUserId();
 
+            // Add anti-replay security fields (timestamp & UUID)
+            $astWithSecurity = \RemoteEloquent\Security\AntiReplayValidator::addSecurityFields($ast);
+
             $payload = [
-                'encrypted_payload' => $encryptionService->encrypt($ast, $userId)
+                'encrypted_payload' => $encryptionService->encrypt($astWithSecurity, $userId)
             ];
         }
 

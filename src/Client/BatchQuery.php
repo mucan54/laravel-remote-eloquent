@@ -109,8 +109,11 @@ class BatchQuery
             $encryptionService = \RemoteEloquent\Security\EncryptionService::instance();
             $userId = \RemoteEloquent\Security\EncryptionService::getCurrentUserId();
 
+            // Add anti-replay security fields (timestamp & UUID)
+            $payloadWithSecurity = \RemoteEloquent\Security\AntiReplayValidator::addSecurityFields(['queries' => $batch]);
+
             $payload = [
-                'encrypted_payload' => $encryptionService->encrypt(['queries' => $batch], $userId)
+                'encrypted_payload' => $encryptionService->encrypt($payloadWithSecurity, $userId)
             ];
         }
 
